@@ -40,10 +40,6 @@ class ContextMenu:
                         if callable( action ):
                             new_node = action( self.pos )
                             self.all_nodes.append( new_node )
-                        else:
-                            # Handle special string commands like 'DELETE_NODE'
-                            self.action_to_perform = action
-                            print(f"Action '{ action }' selected. Click on a node to delete.")
                         return True # Menu was used
             # Any click outside the menu closes it
             if not self.menu_rect.collidepoint( event.pos ):
@@ -167,9 +163,7 @@ class Node:
         pass
 
 # --- Specific Node Implementations ---
-
 class ValueNode( Node ):
-    """A node that holds and outputs a single, editable numeric value."""
     def __init__( self, x, y, value=1 ):
         super().__init__( x, y, 100, 60, title="Value" )
         self.value = value
@@ -242,9 +236,7 @@ class ValueNode( Node ):
             value_rect = value_surf.get_rect( center=self.rect.center )
             surface.blit( value_surf, value_rect )
 
-
 class AddNode( Node ):
-    """A node that adds two input values and produces one output."""
     def __init__( self, x, y ):
         super().__init__( x, y, 100, 80, title="Add" )
         self.add_input( "A" )
@@ -267,9 +259,110 @@ class AddNode( Node ):
             val_b = source_node.values.get( source_socket_name, 0 )
 
         self.values[ "sum" ] = val_a + val_b
+        
+class SubtractNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 80, title="Subtract" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "difference" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 0
+        val_b = 0
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+
+        self.values[ "difference" ] = val_a - val_b
+        
+class MultiplyNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 80, title="Multiply" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "product" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 0
+        val_b = 0
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+
+        self.values[ "product" ] = val_a * val_b
+
+class DivisionNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 80, title="Divide" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "quotient" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 1
+        val_b = 1
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+        
+        if val_b != 0:
+            self.values[ "quotient" ] = val_a / val_b
+        else:
+            self.values[ "quotient" ] = "Error" # Handle division by zero
+
+class ModuloNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 80, title="Modulo" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "remainder" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 1
+        val_b = 1
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+        
+        if val_b != 0:
+            self.values[ "remainder" ] = val_a % val_b
+        else:
+            self.values[ "remainder" ] = "Error"
 
 class DisplayNode( Node ):
-    """A node that displays the value from its single input."""
     def __init__( self, x, y ):
         super().__init__( x, y, 100, 60, title="Display" )
         self.add_input( "in" )
@@ -288,7 +381,11 @@ class DisplayNode( Node ):
     def draw( self, surface, font ):
         super().draw( surface, font )
         # Display the computed value on the node
-        value_surf = font.render( str( self.display_value ), True, WHITE )
+        display_text = str( self.display_value )
+        if isinstance(self.display_value, float):
+             display_text = f"{self.display_value:.2f}" # Format floats nicely
+
+        value_surf = font.render( display_text, True, WHITE )
         value_rect = value_surf.get_rect( center=self.rect.center )
         surface.blit( value_surf, value_rect )
 
@@ -332,7 +429,7 @@ def main():
         # --- Determine which node is being edited ---
         editing_node = None
         for n in nodes:
-            if isinstance(n, ValueNode) and n.editing:
+            if isinstance( n, ValueNode ) and n.editing:
                 editing_node = n
                 break
 
@@ -349,6 +446,29 @@ def main():
                     editing_node.editing = False
                     editing_node.input_text = str( editing_node.value ) # revert
                 continue # Skip other handlers if we are editing
+
+            # --- DELETE NODE with Delete Key ---
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_DELETE:
+                    node_to_delete = None
+                    for node in nodes:
+                        if node.rect.collidepoint( mouse_pos ):
+                            node_to_delete = node
+                            break # Found the node to delete
+                    
+                    if node_to_delete:
+                        # Remove connections associated with this node
+                        connections[:] = [ c for c in connections if c[ 'source_node' ] != node_to_delete and c[ 'target_node' ] != node_to_delete ]
+                        
+                        # Unlink from any nodes that were targeting it
+                        for n in nodes:
+                            if n == node_to_delete: continue
+                            for s in n.input_sockets:
+                                if s[ 'connection' ] and s[ 'connection' ][ 'source_node' ] == node_to_delete:
+                                    s[ 'connection' ] = None
+                        
+                        nodes.remove( node_to_delete )
+                        continue # Event handled
 
             # --- Context Menu Handling ---
             if context_menu:
@@ -394,38 +514,20 @@ def main():
                 
                 if not on_socket:
                     context_menu = ContextMenu(event.pos, {
-                        "Add Value Node": lambda pos: ValueNode( pos[ 0 ], pos[ 1 ], value=0 ), # --- Default value of added Value node = 0 ---
-                        "Add 'Add' Node": lambda pos: AddNode( pos[ 0 ], pos[ 1 ] ),
-                        "Add Display Node": lambda pos: DisplayNode( pos[ 0 ], pos[ 1 ] ),
-                        "Delete Node": "DELETE_NODE"
+                        "Value": lambda pos: ValueNode( pos[ 0 ], pos[ 1 ], value=0 ),
+                        "Add": lambda pos: AddNode( pos[ 0 ], pos[ 1 ] ),
+                        "Subtract": lambda pos: SubtractNode( pos[ 0 ], pos[ 1 ] ),
+                        "Multiply": lambda pos: MultiplyNode( pos[ 0 ], pos[ 1 ] ),
+                        "Division": lambda pos: DivisionNode( pos[ 0 ], pos[ 1 ] ),
+                        "Modulo": lambda pos: ModuloNode( pos[ 0 ], pos[ 1 ] ),
+                        "Display": lambda pos: DisplayNode( pos[ 0 ], pos[ 1 ] )
                     }, nodes )
+                    continue
 
             # --- Pass events to nodes ---
-            handled = False
             for node in reversed( nodes ):
                 if node.handle_event( event, global_connection_state, connections ):
-                    handled = True
                     break
-            
-            # --- Delete Node Logic (from context menu) ---
-            if not handled and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if context_menu and context_menu.action_to_perform == "DELETE_NODE":
-                     node_to_delete = None
-                     for node in nodes:
-                         if node.rect.collidepoint( context_menu.click_pos ):
-                             node_to_delete = node
-                             break
-                     if node_to_delete:
-                         # Remove connections associated with this node
-                         connections[:] = [ c for c in connections if c[ 'source_node' ] != node_to_delete and c[ 'target_node' ] != node_to_delete ]
-                         # Unlink from any nodes that were targeting it
-                         for n in nodes:
-                             for s in n.input_sockets:
-                                 if s[ 'connection' ] and s[ 'connection' ][ 'source_node' ] == node_to_delete:
-                                     s[ 'connection' ] = None
-                         nodes.remove( node_to_delete )
-                     context_menu = None # Close menu
-
 
         # --- Update & Compute ---
         # A simple, iterative computation model. For complex graphs, a topological sort would be needed.
