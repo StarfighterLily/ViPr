@@ -59,10 +59,6 @@ class ContextMenu:
 
 # --- Node Base Class ---
 class Node:
-    """
-    A base class for a draggable, connectable block in the visual language.
-    Handles drawing, dragging, and socket management.
-    """
     def __init__( self, x, y, width, height, title="Node" ):
         self.rect = pygame.Rect( x, y, width, height )
         self.title = title
@@ -163,9 +159,10 @@ class Node:
         pass
 
 # --- Specific Node Implementations ---
-class ValueNode( Node ):
+# --- Input nodes ---
+class IntegerNode( Node ):
     def __init__( self, x, y, value=1 ):
-        super().__init__( x, y, 100, 60, title="Value" )
+        super().__init__( x, y, 100, 60, title="Integer" )
         self.value = value
         self.add_output( "out" )
         self._update_socket_positions()
@@ -236,9 +233,229 @@ class ValueNode( Node ):
             value_rect = value_surf.get_rect( center=self.rect.center )
             surface.blit( value_surf, value_rect )
 
+class FloatNode( Node ):
+    def __init__( self, x, y, value=1 ):
+        super().__init__( x, y, 100, 60, title="Float" )
+        self.value = value
+        self.add_output( "out" )
+        self._update_socket_positions()
+        self.editing = False
+        self.input_text = str( self.value )
+        self.last_click_time = 0
+
+    def handle_event( self, event, global_state, connections ):
+        # --- Handle keyboard input when in edit mode ---
+        if self.editing:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    try:
+                        self.value = float( self.input_text )
+                    except ValueError:
+                        self.value = 0 # Default to 0 if input is invalid
+                    self.editing = False
+                elif event.key == pygame.K_BACKSPACE:
+                    self.input_text = self.input_text[ :-1 ]
+                else:
+                    self.input_text += event.unicode
+                return True # Event handled
+
+            if event.type == pygame.MOUSEBUTTONDOWN and not self.rect.collidepoint( event.pos ):
+                self.editing = False # Click outside to cancel editing
+                self.input_text = str( self.value ) # Revert text
+                
+        # --- Handle mouse clicks for entering edit mode and standard dragging ---
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.rect.collidepoint( event.pos ):
+                current_time = pygame.time.get_ticks()
+                # Check for double-click (e.g., within 500 milliseconds)
+                if current_time - self.last_click_time < 500:
+                    self.editing = True
+                    self.input_text = str( self.value )
+                    self.is_dragging = False # Prevent dragging on double-click
+                    return True # Event handled
+                self.last_click_time = current_time
+
+        # --- Fallback to base class event handling (for dragging, etc.) ---
+        # Ensure editing mode doesn't interfere with starting a drag
+        if not self.editing:
+            return super().handle_event( event, global_state, connections )
+        return False
+
+    def compute( self ):
+        self.values[ "out" ] = self.value
+
+    def draw( self, surface, font ):
+        super().draw( surface, font )
+        
+        if self.editing:
+            # --- Draw the input box when editing ---
+            input_rect = pygame.Rect( self.rect.centerx - 40, self.rect.centery - 12, 80, 24 )
+            pygame.draw.rect( surface, INPUT_BOX_COLOR, input_rect )
+            pygame.draw.rect( surface, WHITE, input_rect, 1 )
+            
+            text_surf = font.render( self.input_text, True, WHITE )
+            surface.blit( text_surf, ( input_rect.x + 5, input_rect.y + 5 ) )
+
+            # Blinking cursor
+            if pygame.time.get_ticks() % 1000 < 500:
+                cursor_pos = input_rect.x + text_surf.get_width() + 8
+                pygame.draw.line( surface, WHITE, ( cursor_pos, input_rect.y + 5 ), ( cursor_pos, input_rect.y + 18 ) )
+        else:
+            # --- Display the value on the node ---
+            value_surf = font.render( str( self.value ), True, WHITE )
+            value_rect = value_surf.get_rect( center=self.rect.center )
+            surface.blit( value_surf, value_rect )
+
+class StringNode( Node ):
+    def __init__( self, x, y, value=1 ):
+        super().__init__( x, y, 100, 60, title="String" )
+        self.value = value
+        self.add_output( "out" )
+        self._update_socket_positions()
+        self.editing = False
+        self.input_text = str( self.value )
+        self.last_click_time = 0
+
+    def handle_event( self, event, global_state, connections ):
+        # --- Handle keyboard input when in edit mode ---
+        if self.editing:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    try:
+                        self.value = str( self.input_text )
+                    except ValueError:
+                        self.value = "" # Default to empty string if input is invalid
+                    self.editing = False
+                elif event.key == pygame.K_BACKSPACE:
+                    self.input_text = self.input_text[ :-1 ]
+                else:
+                    self.input_text += event.unicode
+                return True # Event handled
+
+            if event.type == pygame.MOUSEBUTTONDOWN and not self.rect.collidepoint( event.pos ):
+                self.editing = False # Click outside to cancel editing
+                self.input_text = str( self.value ) # Revert text
+                
+        # --- Handle mouse clicks for entering edit mode and standard dragging ---
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.rect.collidepoint( event.pos ):
+                current_time = pygame.time.get_ticks()
+                # Check for double-click (e.g., within 500 milliseconds)
+                if current_time - self.last_click_time < 500:
+                    self.editing = True
+                    self.input_text = str( self.value )
+                    self.is_dragging = False # Prevent dragging on double-click
+                    return True # Event handled
+                self.last_click_time = current_time
+
+        # --- Fallback to base class event handling (for dragging, etc.) ---
+        # Ensure editing mode doesn't interfere with starting a drag
+        if not self.editing:
+            return super().handle_event( event, global_state, connections )
+        return False
+
+    def compute( self ):
+        self.values[ "out" ] = self.value
+
+    def draw( self, surface, font ):
+        super().draw( surface, font )
+        
+        if self.editing:
+            # --- Draw the input box when editing ---
+            input_rect = pygame.Rect( self.rect.centerx - 40, self.rect.centery - 12, 80, 24 )
+            pygame.draw.rect( surface, INPUT_BOX_COLOR, input_rect )
+            pygame.draw.rect( surface, WHITE, input_rect, 1 )
+            
+            text_surf = font.render( self.input_text, True, WHITE )
+            surface.blit( text_surf, ( input_rect.x + 5, input_rect.y + 5 ) )
+
+            # Blinking cursor
+            if pygame.time.get_ticks() % 1000 < 500:
+                cursor_pos = input_rect.x + text_surf.get_width() + 8
+                pygame.draw.line( surface, WHITE, ( cursor_pos, input_rect.y + 5 ), ( cursor_pos, input_rect.y + 18 ) )
+        else:
+            # --- Display the value on the node ---
+            value_surf = font.render( str( self.value ), True, WHITE )
+            value_rect = value_surf.get_rect( center=self.rect.center )
+            surface.blit( value_surf, value_rect )
+
+class ArrayNode( Node ):
+    def __init__( self, x, y, value=[ 0 ] ):
+        super().__init__( x, y, 100, 60, title="Array" )
+        self.value = value
+        self.add_output( "out" )
+        self._update_socket_positions()
+        self.editing = False
+        self.input_text = str( self.value )
+        self.last_click_time = 0
+
+    def handle_event( self, event, global_state, connections ):
+        # --- Handle keyboard input when in edit mode ---
+        if self.editing:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    try:
+                        self.value = self.input_text.split( "," )
+                    except ValueError:
+                        self.value = "" # Default to empty string if input is invalid
+                    self.editing = False
+                elif event.key == pygame.K_BACKSPACE:
+                    self.input_text = self.input_text[ :-1 ]
+                else:
+                    self.input_text += event.unicode
+                return True # Event handled
+
+            if event.type == pygame.MOUSEBUTTONDOWN and not self.rect.collidepoint( event.pos ):
+                self.editing = False # Click outside to cancel editing
+                self.input_text = str( self.value ) # Revert text
+                
+        # --- Handle mouse clicks for entering edit mode and standard dragging ---
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.rect.collidepoint( event.pos ):
+                current_time = pygame.time.get_ticks()
+                # Check for double-click (e.g., within 500 milliseconds)
+                if current_time - self.last_click_time < 500:
+                    self.editing = True
+                    self.input_text = str( self.value )
+                    self.is_dragging = False # Prevent dragging on double-click
+                    return True # Event handled
+                self.last_click_time = current_time
+
+        # --- Fallback to base class event handling (for dragging, etc.) ---
+        # Ensure editing mode doesn't interfere with starting a drag
+        if not self.editing:
+            return super().handle_event( event, global_state, connections )
+        return False
+
+    def compute( self ):
+        self.values[ "out" ] = self.value
+
+    def draw( self, surface, font ):
+        super().draw( surface, font )
+        
+        if self.editing:
+            # --- Draw the input box when editing ---
+            input_rect = pygame.Rect( self.rect.centerx - 40, self.rect.centery - 12, 80, 24 )
+            pygame.draw.rect( surface, INPUT_BOX_COLOR, input_rect )
+            pygame.draw.rect( surface, WHITE, input_rect, 1 )
+            
+            text_surf = font.render( self.input_text, True, WHITE )
+            surface.blit( text_surf, ( input_rect.x + 5, input_rect.y + 5 ) )
+
+            # Blinking cursor
+            if pygame.time.get_ticks() % 1000 < 500:
+                cursor_pos = input_rect.x + text_surf.get_width() + 8
+                pygame.draw.line( surface, WHITE, ( cursor_pos, input_rect.y + 5 ), ( cursor_pos, input_rect.y + 18 ) )
+        else:
+            # --- Display the value on the node ---
+            value_surf = font.render( str( self.value ), True, WHITE )
+            value_rect = value_surf.get_rect( center=self.rect.center )
+            surface.blit( value_surf, value_rect )
+
+# --- Arithmetic nodes ---
 class AddNode( Node ):
     def __init__( self, x, y ):
-        super().__init__( x, y, 100, 80, title="Add" )
+        super().__init__( x, y, 100, 50, title="Add" )
         self.add_input( "A" )
         self.add_input( "B" )
         self.add_output( "sum" )
@@ -259,10 +476,10 @@ class AddNode( Node ):
             val_b = source_node.values.get( source_socket_name, 0 )
 
         self.values[ "sum" ] = val_a + val_b
-        
+
 class SubtractNode( Node ):
     def __init__( self, x, y ):
-        super().__init__( x, y, 100, 80, title="Subtract" )
+        super().__init__( x, y, 100, 50, title="Subtract" )
         self.add_input( "A" )
         self.add_input( "B" )
         self.add_output( "difference" )
@@ -283,10 +500,10 @@ class SubtractNode( Node ):
             val_b = source_node.values.get( source_socket_name, 0 )
 
         self.values[ "difference" ] = val_a - val_b
-        
+
 class MultiplyNode( Node ):
     def __init__( self, x, y ):
-        super().__init__( x, y, 100, 80, title="Multiply" )
+        super().__init__( x, y, 100, 50, title="Multiply" )
         self.add_input( "A" )
         self.add_input( "B" )
         self.add_output( "product" )
@@ -308,9 +525,9 @@ class MultiplyNode( Node ):
 
         self.values[ "product" ] = val_a * val_b
 
-class DivisionNode( Node ):
+class FullDivideNode( Node ):
     def __init__( self, x, y ):
-        super().__init__( x, y, 100, 80, title="Divide" )
+        super().__init__( x, y, 100, 50, title="Full Divide" )
         self.add_input( "A" )
         self.add_input( "B" )
         self.add_output( "quotient" )
@@ -333,11 +550,11 @@ class DivisionNode( Node ):
         if val_b != 0:
             self.values[ "quotient" ] = val_a / val_b
         else:
-            self.values[ "quotient" ] = "Error" # Handle division by zero
+            self.values[ "quotient" ] = "Error"
 
-class ModuloNode( Node ):
+class ModDivideNode( Node ):
     def __init__( self, x, y ):
-        super().__init__( x, y, 100, 80, title="Modulo" )
+        super().__init__( x, y, 100, 50, title="Mod Divide" )
         self.add_input( "A" )
         self.add_input( "B" )
         self.add_output( "remainder" )
@@ -362,6 +579,149 @@ class ModuloNode( Node ):
         else:
             self.values[ "remainder" ] = "Error"
 
+class IntDivideNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 50, title="Int Divide" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "quotient" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 1
+        val_b = 1
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+        
+        if val_b != 0:
+            self.values[ "quotient" ] = val_a // val_b
+        else:
+            self.values[ "quotient" ] = "Error"
+
+# --- Logic nodes ---
+class AndNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 50, title="And" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "out" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 0
+        val_b = 0
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+        
+        self.values[ "out" ] = val_a and val_b
+
+class OrNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 50, title="Or" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "out" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 0
+        val_b = 0
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+        
+        self.values[ "out" ] = val_a or val_b
+        
+class XorNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 50, title="Xor" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "out" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 0
+        val_b = 0
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+        
+        self.values[ "out" ] = val_a ^ val_b
+
+class NotNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 50, title="Not" )
+        self.add_input( "in" )
+        self.add_output( "out" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 0
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        
+        self.values[ "out" ] = not val_a
+
+# --- String nodes ---
+class ConcatNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 50, title="Concatenate" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "new_string" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = ""
+        val_b = ""
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+
+        self.values[ "new_string" ] = val_a + val_b
+
+# --- Output nodes ---
 class DisplayNode( Node ):
     def __init__( self, x, y ):
         super().__init__( x, y, 100, 60, title="Display" )
@@ -388,6 +748,38 @@ class DisplayNode( Node ):
         value_surf = font.render( display_text, True, WHITE )
         value_rect = value_surf.get_rect( center=self.rect.center )
         surface.blit( value_surf, value_rect )
+        
+class PreviewNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 60, title="Preview" )
+        self.add_input( "in" )
+        self.add_output( "out" )
+        self.display_value = "None"
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 0
+        # Get value from the input connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            self.display_value = source_node.values.get( source_socket_name, "None" )
+            val_a = source_node.values.get( source_socket_name, 0 )
+        else:
+            self.display_value = "None"
+        
+        self.values[ "out" ] = val_a
+
+    def draw( self, surface, font ):
+        super().draw( surface, font )
+        # Display the computed value on the node
+        display_text = str( self.display_value )
+        if isinstance(self.display_value, float):
+             display_text = f"{self.display_value:.2f}" # Format floats nicely
+
+        value_surf = font.render( display_text, True, WHITE )
+        value_rect = value_surf.get_rect( center=self.rect.center )
+        surface.blit( value_surf, value_rect )
 
 # --- Main Application ---
 def main():
@@ -402,8 +794,8 @@ def main():
     pygame.display.set_caption( "ViPr - Visual Programmer" )
 
     nodes = [ # --- Default nodes on opening ---
-        ValueNode( 100, 100, value=5 ),
-        ValueNode( 100, 250, value=10 ),
+        IntegerNode( 100, 100, value=5 ),
+        IntegerNode( 100, 250, value=10 ),
         AddNode( 350, 150 ),
         DisplayNode( 600, 150 )
     ]
@@ -429,7 +821,13 @@ def main():
         # --- Determine which node is being edited ---
         editing_node = None
         for n in nodes:
-            if isinstance( n, ValueNode ) and n.editing:
+            if isinstance( n, IntegerNode ) and n.editing:
+                editing_node = n
+                break
+            if isinstance( n, FloatNode ) and n.editing:
+                editing_node = n
+                break
+            if isinstance( n, StringNode ) and n.editing:
                 editing_node = n
                 break
 
@@ -513,14 +911,24 @@ def main():
                     if on_socket: break
                 
                 if not on_socket:
-                    context_menu = ContextMenu(event.pos, {
-                        "Value": lambda pos: ValueNode( pos[ 0 ], pos[ 1 ], value=0 ),
+                    context_menu = ContextMenu(event.pos, { # --- Add context menu items here ---
+                        "Integer": lambda pos: ValueNode( pos[ 0 ], pos[ 1 ], value=0 ),
+                        "Float": lambda pos: FloatNode( pos[ 0 ], pos[ 1 ], value=0.0 ),
+                        "String": lambda pos: StringNode( pos[ 0 ], pos[ 1 ], value="" ),
+                        "Array": lambda pos: ArrayNode( pos[ 0 ], pos[ 1 ], value=[0] ),
                         "Add": lambda pos: AddNode( pos[ 0 ], pos[ 1 ] ),
                         "Subtract": lambda pos: SubtractNode( pos[ 0 ], pos[ 1 ] ),
                         "Multiply": lambda pos: MultiplyNode( pos[ 0 ], pos[ 1 ] ),
-                        "Division": lambda pos: DivisionNode( pos[ 0 ], pos[ 1 ] ),
-                        "Modulo": lambda pos: ModuloNode( pos[ 0 ], pos[ 1 ] ),
-                        "Display": lambda pos: DisplayNode( pos[ 0 ], pos[ 1 ] )
+                        "Full Divide": lambda pos: TrueDivideNode( pos[ 0 ], pos[ 1 ] ),
+                        "Mod Divide": lambda pos: ModuloDivideNode( pos[ 0 ], pos[ 1 ] ),
+                        "Int Divide": lambda pos: IntegerDivideNode( pos[ 0 ], pos[ 1 ] ),
+                        "And": lambda pos: AndNode( pos[ 0 ], pos[ 1 ] ),
+                        "Or": lambda pos: OrNode( pos[ 0 ], pos[ 1 ] ),
+                        "Xor": lambda pos: XorNode( pos[ 0 ], pos[ 1 ] ),
+                        "Not": lambda pos: NotNode( pos[ 0 ], pos[ 1 ] ),
+                        "Concatenate": lambda pos: ConcatNode( pos[ 0 ], pos[ 1 ] ),
+                        "Display": lambda pos: DisplayNode( pos[ 0 ], pos[ 1 ] ),
+                        "Preview": lambda pos: PreviewNode( pos[ 0 ], pos[ 1 ] )
                     }, nodes )
                     continue
 
