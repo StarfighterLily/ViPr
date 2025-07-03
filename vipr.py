@@ -136,7 +136,6 @@ class Node:
         return False
 
     def draw( self, surface, font ):
-        """Draws the node body, title, and sockets."""
         # Draw body
         pygame.draw.rect( surface, NODE_BODY_COLOR, self.rect, border_radius=5 )
         pygame.draw.rect( surface, NODE_BORDER_COLOR, self.rect, 2, border_radius=5 )
@@ -152,10 +151,6 @@ class Node:
             pygame.draw.rect( surface, WHITE, sock[ 'rect' ], 1, border_radius=2 )
 
     def compute( self ):
-        """
-        Placeholder for computation logic.
-        To be implemented by derived node classes.
-        """
         pass
 
 # --- Specific Node Implementations ---
@@ -233,6 +228,24 @@ class IntegerNode( Node ):
             value_rect = value_surf.get_rect( center=self.rect.center )
             surface.blit( value_surf, value_rect )
 
+class RndIntegerNode( Node ):
+    def __init__( self, x, y, value=1 ):
+        super().__init__( x, y, 100, 60, title="Rnd Integer" )
+        self.value = random.randint( 0, 65535 )
+        self.add_output( "out" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        self.values[ "out" ] = self.value
+
+    def draw( self, surface, font ):
+        super().draw( surface, font )
+        
+        # --- Display the value on the node ---
+        value_surf = font.render( str( self.value ), True, WHITE )
+        value_rect = value_surf.get_rect( center=self.rect.center )
+        surface.blit( value_surf, value_rect )
+
 class FloatNode( Node ):
     def __init__( self, x, y, value=1 ):
         super().__init__( x, y, 100, 60, title="Float" )
@@ -305,6 +318,24 @@ class FloatNode( Node ):
             value_surf = font.render( str( self.value ), True, WHITE )
             value_rect = value_surf.get_rect( center=self.rect.center )
             surface.blit( value_surf, value_rect )
+
+class RndFloatNode( Node ):
+    def __init__( self, x, y, value=1 ):
+        super().__init__( x, y, 100, 60, title="Rnd Float" )
+        self.value = random.uniform( 0, 65535 )
+        self.add_output( "out" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        self.values[ "out" ] = self.value
+
+    def draw( self, surface, font ):
+        super().draw( surface, font )
+        
+        # --- Display the value on the node ---
+        value_surf = font.render( str( self.value ), True, WHITE )
+        value_rect = value_surf.get_rect( center=self.rect.center )
+        surface.blit( value_surf, value_rect )
 
 class StringNode( Node ):
     def __init__( self, x, y, value=1 ):
@@ -605,6 +636,48 @@ class IntDivideNode( Node ):
             self.values[ "quotient" ] = val_a // val_b
         else:
             self.values[ "quotient" ] = "Error"
+
+class ExponentNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 100, 50, title="Exponent" )
+        self.add_input( "A" )
+        self.add_input( "B" )
+        self.add_output( "out" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 1
+        val_b = 1
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        if self.input_sockets[ 1 ][ 'connection' ]:
+            source_node = self.input_sockets[ 1 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 1 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_b = source_node.values.get( source_socket_name, 0 )
+        
+        self.values[ "out" ] = val_a ** val_b
+
+class AbsNode( Node ):
+    def __init__( self, x, y ):
+        super().__init__( x, y, 130, 50, title="Absolute Value" )
+        self.add_input( "A" )
+        self.add_output( "out" )
+        self._update_socket_positions()
+
+    def compute( self ):
+        val_a = 1
+        # Get value from input A connection
+        if self.input_sockets[ 0 ][ 'connection' ]:
+            source_node = self.input_sockets[ 0 ][ 'connection' ][ 'source_node' ]
+            source_socket_name = self.input_sockets[ 0 ][ 'connection' ][ 'source_socket' ][ 'name' ]
+            val_a = source_node.values.get( source_socket_name, 0 )
+        # Get value from input B connection
+        
+        self.values[ "out" ] = abs( val_a )
 
 # --- Logic nodes ---
 class AndNode( Node ):
@@ -912,8 +985,10 @@ def main():
                 
                 if not on_socket:
                     context_menu = ContextMenu(event.pos, { # --- Add context menu items here ---
-                        "Integer": lambda pos: ValueNode( pos[ 0 ], pos[ 1 ], value=0 ),
+                        "Integer": lambda pos: IntegerNode( pos[ 0 ], pos[ 1 ], value=0 ),
+                        "Random Integer": lambda pos: RndIntegerNode( pos[ 0 ], pos[ 1 ], value=0 ),
                         "Float": lambda pos: FloatNode( pos[ 0 ], pos[ 1 ], value=0.0 ),
+                        "RndFloat": lambda pos: RndFloatNode( pos[ 0 ], pos[ 1 ], value=0.0 ),
                         "String": lambda pos: StringNode( pos[ 0 ], pos[ 1 ], value="" ),
                         "Array": lambda pos: ArrayNode( pos[ 0 ], pos[ 1 ], value=[0] ),
                         "Add": lambda pos: AddNode( pos[ 0 ], pos[ 1 ] ),
@@ -922,6 +997,8 @@ def main():
                         "Full Divide": lambda pos: TrueDivideNode( pos[ 0 ], pos[ 1 ] ),
                         "Mod Divide": lambda pos: ModuloDivideNode( pos[ 0 ], pos[ 1 ] ),
                         "Int Divide": lambda pos: IntegerDivideNode( pos[ 0 ], pos[ 1 ] ),
+                        "Exponent": lambda pos: ExponentNode( pos[ 0 ], pos[ 1 ] ),
+                        "Absolute Value": lambda pos: AbsNode( pos[ 0 ], pos[ 1 ] ),
                         "And": lambda pos: AndNode( pos[ 0 ], pos[ 1 ] ),
                         "Or": lambda pos: OrNode( pos[ 0 ], pos[ 1 ] ),
                         "Xor": lambda pos: XorNode( pos[ 0 ], pos[ 1 ] ),
