@@ -13,7 +13,6 @@ CONNECTION_COLOR = ( 200, 200, 100 )
 SOCKET_COLOR = ( 50, 150, 250 )
 INPUT_BOX_COLOR = ( 30, 30, 40 )
 
-
 class ContextMenu:
     # --- Right-click context menu ---
     def __init__( self, pos, options, all_nodes ):
@@ -61,8 +60,11 @@ class ContextMenu:
 class Node:
     def __init__( self, x, y, width, height, title="Node" ):
         self.rect = pygame.Rect( x, y, width, height )
+        self.min_width = 80
+        self.min_height = 50
         self.title = title
         self.is_dragging = False
+        self.is_resizing = False
         self.drag_offset_x = 0
         self.drag_offset_y = 0
         self.id = id( self )
@@ -70,6 +72,9 @@ class Node:
         self.input_sockets = []
         self.output_sockets = []
         self.values = {} # To store computed values for outputs
+
+        # --- Handle for resizing ---
+        self.resize_handle_rect = pygame.Rect( self.rect.right - 10, self.rect.bottom - 10, 10, 10)
 
     def add_input( self, name ):
         self.input_sockets.append( { 'name': name, 'pos': ( 0,0 ), 'rect': None, 'connection': None } )
@@ -91,9 +96,17 @@ class Node:
             sock[ 'pos' ] = ( self.rect.right, self.rect.top + int( output_spacing * ( i + 1 ) ) )
             sock[ 'rect' ] = pygame.Rect( sock[ 'pos' ][ 0 ] - 5, sock[ 'pos' ][ 1 ] - 5, 10, 10 )
 
+        # Update resize handle position
+        self.resize_handle_rect.topleft = ( self.rect.right - 10, self.rect.bottom - 10 )
+
     def handle_event( self, event, global_state, connections ):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1: # Left-click
+                # Start resizing
+                if self.resize_handle_rect.collidepoint( event.pos ):
+                    self.is_resizing = True
+                    return True
+
                 # Start a connection from an output socket
                 for sock in self.output_sockets:
                     if sock[ 'rect' ].collidepoint( event.pos ):
@@ -123,14 +136,26 @@ class Node:
 
 
         elif event.type == pygame.MOUSEBUTTONUP:
-            if event.button == 1 and self.is_dragging:
-                self.is_dragging = False
-                return True
+            if event.button == 1:
+                if self.is_dragging:
+                    self.is_dragging = False
+                    return True
+                if self.is_resizing:
+                    self.is_resizing = False
+                    return True
+
 
         elif event.type == pygame.MOUSEMOTION:
             if self.is_dragging:
                 self.rect.x = event.pos[ 0 ] + self.drag_offset_x
                 self.rect.y = event.pos[ 1 ] + self.drag_offset_y
+                self._update_socket_positions()
+                return True
+            if self.is_resizing:
+                new_width = event.pos[0] - self.rect.left
+                new_height = event.pos[1] - self.rect.top
+                self.rect.width = max(self.min_width, new_width)
+                self.rect.height = max(self.min_height, new_height)
                 self._update_socket_positions()
                 return True
         return False
@@ -149,6 +174,9 @@ class Node:
         for sock in self.input_sockets + self.output_sockets:
             pygame.draw.rect( surface, SOCKET_COLOR, sock[ 'rect' ], border_radius=2 )
             pygame.draw.rect( surface, WHITE, sock[ 'rect' ], 1, border_radius=2 )
+        
+        # Draw resize handle
+        pygame.draw.rect(surface, NODE_BORDER_COLOR, self.resize_handle_rect)
 
     def compute( self ):
         pass
@@ -188,6 +216,9 @@ class IntegerNode( Node ):
         # --- Handle mouse clicks for entering edit mode and standard dragging ---
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.rect.collidepoint( event.pos ):
+                # Prevent editing when resizing
+                if self.resize_handle_rect.collidepoint(event.pos):
+                    return super().handle_event(event, global_state, connections)
                 current_time = pygame.time.get_ticks()
                 # Check for double-click (e.g., within 500 milliseconds)
                 if current_time - self.last_click_time < 500:
@@ -279,6 +310,9 @@ class FloatNode( Node ):
         # --- Handle mouse clicks for entering edit mode and standard dragging ---
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.rect.collidepoint( event.pos ):
+                # Prevent editing when resizing
+                if self.resize_handle_rect.collidepoint(event.pos):
+                    return super().handle_event(event, global_state, connections)
                 current_time = pygame.time.get_ticks()
                 # Check for double-click (e.g., within 500 milliseconds)
                 if current_time - self.last_click_time < 500:
@@ -370,6 +404,9 @@ class StringNode( Node ):
         # --- Handle mouse clicks for entering edit mode and standard dragging ---
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.rect.collidepoint( event.pos ):
+                # Prevent editing when resizing
+                if self.resize_handle_rect.collidepoint(event.pos):
+                    return super().handle_event(event, global_state, connections)
                 current_time = pygame.time.get_ticks()
                 # Check for double-click (e.g., within 500 milliseconds)
                 if current_time - self.last_click_time < 500:
@@ -443,6 +480,9 @@ class ArrayNode( Node ):
         # --- Handle mouse clicks for entering edit mode and standard dragging ---
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.rect.collidepoint( event.pos ):
+                # Prevent editing when resizing
+                if self.resize_handle_rect.collidepoint(event.pos):
+                    return super().handle_event(event, global_state, connections)
                 current_time = pygame.time.get_ticks()
                 # Check for double-click (e.g., within 500 milliseconds)
                 if current_time - self.last_click_time < 500:
@@ -894,13 +934,7 @@ def main():
         # --- Determine which node is being edited ---
         editing_node = None
         for n in nodes:
-            if isinstance( n, IntegerNode ) and n.editing:
-                editing_node = n
-                break
-            if isinstance( n, FloatNode ) and n.editing:
-                editing_node = n
-                break
-            if isinstance( n, StringNode ) and n.editing:
+            if isinstance( n, (IntegerNode, FloatNode, StringNode, ArrayNode) ) and n.editing:
                 editing_node = n
                 break
 
@@ -994,9 +1028,9 @@ def main():
                         "Add": lambda pos: AddNode( pos[ 0 ], pos[ 1 ] ),
                         "Subtract": lambda pos: SubtractNode( pos[ 0 ], pos[ 1 ] ),
                         "Multiply": lambda pos: MultiplyNode( pos[ 0 ], pos[ 1 ] ),
-                        "Full Divide": lambda pos: TrueDivideNode( pos[ 0 ], pos[ 1 ] ),
-                        "Mod Divide": lambda pos: ModuloDivideNode( pos[ 0 ], pos[ 1 ] ),
-                        "Int Divide": lambda pos: IntegerDivideNode( pos[ 0 ], pos[ 1 ] ),
+                        "Full Divide": lambda pos: FullDivideNode( pos[ 0 ], pos[ 1 ] ),
+                        "Mod Divide": lambda pos: ModDivideNode( pos[ 0 ], pos[ 1 ] ),
+                        "Int Divide": lambda pos: IntDivideNode( pos[ 0 ], pos[ 1 ] ),
                         "Exponent": lambda pos: ExponentNode( pos[ 0 ], pos[ 1 ] ),
                         "Absolute Value": lambda pos: AbsNode( pos[ 0 ], pos[ 1 ] ),
                         "And": lambda pos: AndNode( pos[ 0 ], pos[ 1 ] ),
@@ -1030,7 +1064,6 @@ def main():
             pygame.draw.line( screen, CONNECTION_COLOR, start_pos, end_pos, 2 )
             pygame.draw.aaline( screen, WHITE, start_pos, end_pos )
 
-
         # Draw temporary connection line
         if global_connection_state[ 'is_drawing_connection' ]:
             start_pos = global_connection_state[ 'connection_start_socket' ][ 'pos' ]
@@ -1044,7 +1077,6 @@ def main():
         if context_menu:
             context_menu.draw( screen, small_font )
 
-
         # --- Update Display ---
         pygame.display.flip()
         clock.tick( 60 )
@@ -1053,7 +1085,6 @@ def main():
     pygame.font.quit()
     pygame.quit()
     sys.exit()
-
 
 if __name__ == '__main__':
     main()
